@@ -1,0 +1,132 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local TeamColors = {
+    ["Civilian"] = Color3.fromRGB(65, 105, 225),     -- Azul Royal
+    ["Military"] = Color3.fromRGB(0, 255, 0),        -- Verde Chromakey
+    ["Tripods"] = Color3.fromRGB(170, 0, 255),       -- Roxo
+}
+
+local ESPObjects = {}
+
+local function studsToMeters(studs)
+    return math.floor(studs * 0.28 + 0.5)
+end
+
+local function createESP(player)
+    if player == LocalPlayer or ESPObjects[player] then return end
+
+    local line = Drawing.new("Line")
+    line.Thickness = 1.5
+    line.Visible = false
+
+    local box = Drawing.new("Square")
+    box.Thickness = 1.5
+    box.Filled = false
+    box.Visible = false
+
+    local nameText = Drawing.new("Text")
+    nameText.Size = 14
+    nameText.Center = true
+    nameText.Outline = true
+    nameText.Visible = false
+
+    local expText = Drawing.new("Text")
+    expText.Size = 13
+    expText.Center = true
+    expText.Outline = true
+    expText.Visible = false
+
+    ESPObjects[player] = {Line = line, Box = box, Name = nameText, EXP = expText}
+
+    RunService.RenderStepped:Connect(function()
+        local char = player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then
+            line.Visible = false
+            box.Visible = false
+            nameText.Visible = false
+            expText.Visible = false
+            return
+        end
+
+        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not myRoot then return end
+
+        local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+        if not onScreen then
+            line.Visible = false
+            box.Visible = false
+            nameText.Visible = false
+            expText.Visible = false
+            return
+        end
+
+        local teamColor = TeamColors[player.Team and player.Team.Name] or Color3.new(1, 1, 1)
+        local distance = (root.Position - myRoot.Position).Magnitude
+        local meters = studsToMeters(distance)
+
+        local scale = 1 / (root.Position - Camera.CFrame.Position).Magnitude * 1500
+        local boxW, boxH = root.Size.X * scale, root.Size.Y * scale
+        box.Size = Vector2.new(boxW, boxH)
+        box.Position = Vector2.new(screenPos.X - boxW/2, screenPos.Y - boxH/2)
+        box.Color = teamColor
+        box.Visible = true
+
+        local fromScreen = Camera:WorldToViewportPoint(myRoot.Position)
+        line.From = Vector2.new(fromScreen.X, fromScreen.Y)
+        line.To = Vector2.new(screenPos.X, screenPos.Y)
+        line.Color = teamColor
+        line.Visible = true
+
+        local stats = player:FindFirstChild("leaderstats")
+        local exp = stats and stats:FindFirstChild("EXP")
+        if exp then
+            expText.Text = string.format("EXP: %d", exp.Value)
+            expText.Position = Vector2.new(screenPos.X, screenPos.Y - boxH/2 - 30)
+            expText.Color = teamColor
+            expText.Visible = true
+        else
+            expText.Visible = false
+        end
+
+        nameText.Text = string.format("%s - %dm", player.Name, meters)
+        nameText.Position = Vector2.new(screenPos.X, screenPos.Y - boxH/2 - 15)
+        nameText.Color = teamColor
+        nameText.Visible = true
+    end)
+end
+
+Players.PlayerRemoving:Connect(function(player)
+    local esp = ESPObjects[player]
+    if esp then
+        esp.Line:Remove()
+        esp.Box:Remove()
+        esp.Name:Remove()
+        esp.EXP:Remove()
+        ESPObjects[player] = nil
+    end
+end)
+
+local function monitorPlayer(player)
+    player.CharacterAdded:Connect(function()
+        wait(1)
+        createESP(player)
+    end)
+    createESP(player)
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    monitorPlayer(p)
+end
+Players.PlayerAdded:Connect(monitorPlayer)
+
+RunService.RenderStepped:Connect(function()
+    local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = 200
+        humanoid.JumpPower = 200
+    end
+end)
