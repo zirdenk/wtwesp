@@ -130,3 +130,9 @@ RunService.RenderStepped:Connect(function()
         humanoid.JumpPower = 200
     end
 end)
+
+StarterGui:SetCore("SendNotification", {
+    Title = "WarESP",
+    Text = "This script has been executed, good luck :P",
+    Duration = 5
+})
